@@ -1,0 +1,1539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0e14">
+<title>A股量化 · 账户看板</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0e14; --card:#121821; --card2:#0f141c; --line:#1e2733;
+  --tx:#e8eef6; --dim:#7d8896; --dim2:#5a6472;
+  --up:#f6465d; --down:#0ecb81; --gold:#e8b44a; --blue:#4c9aff;
+}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg); color:var(--tx);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-size:14px; line-height:1.55; padding-bottom:40px;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+.mono{font-variant-numeric:tabular-nums;font-feature-settings:"tnum";font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+.up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--dim)}
+.dim{color:var(--dim)}
+
+/* header */
+header{padding:22px 0 14px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-size:19px;font-weight:700;letter-spacing:.3px}
+h1 span{color:var(--gold)}
+.hd-meta{font-size:12px;color:var(--dim);text-align:right;max-width:100%}
+.hd-meta b{color:var(--tx);font-weight:600}
+.ctag{display:inline-block;margin-top:6px;max-width:100%;font-size:11px;line-height:1.5;padding:2px 8px;
+  border-radius:20px;border:1px solid #2a3648;color:var(--dim);background:#111823;
+  white-space:normal;word-break:break-word}
+.ctag.ok{color:#0ecb81;border-color:rgba(14,203,129,.35);background:rgba(14,203,129,.08)}
+.ctag.warn{color:#e8b44a;border-color:rgba(232,180,74,.35);background:rgba(232,180,74,.08)}
+
+/* 账户卡 */
+.accts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px}
+.acct{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 18px 15px;position:relative;overflow:hidden}
+.acct.primary{border-color:#2a3648;background:linear-gradient(160deg,#141b26 0%,#121821 55%)}
+.acct.primary:after{content:"";position:absolute;inset:0;border-radius:14px;pointer-events:none;
+  box-shadow:inset 0 1px 0 rgba(232,180,74,.18)}
+.acct-tag{font-size:12px;color:var(--dim);margin-bottom:8px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.badge{font-size:10px;padding:2px 7px;border-radius:20px;border:1px solid;letter-spacing:.2px}
+.badge.ok{color:#0ecb81;border-color:rgba(14,203,129,.35);background:rgba(14,203,129,.08)}
+.badge.bad{color:#f6465d;border-color:rgba(246,70,93,.35);background:rgba(246,70,93,.08)}
+.acct-num{font-size:33px;font-weight:700;letter-spacing:-.5px;line-height:1.15;font-variant-numeric:tabular-nums}
+.acct-num .unit{font-size:14px;font-weight:400;color:var(--dim);margin-left:6px}
+.acct-sub{margin-top:4px;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.acct-sub .big{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
+.acct-sub .dim{font-size:11.5px}
+.acct-bar{height:3px;background:#1a222e;border-radius:2px;margin:12px 0 11px;overflow:hidden}
+.acct-bar i{display:block;height:100%;border-radius:2px;opacity:.85}
+.acct-bar i.up{background:linear-gradient(90deg,#f6465d,#ff7b8c)}
+.acct-bar i.down{background:linear-gradient(90deg,#0a9e66,#0ecb81)}
+.acct-foot{display:flex;gap:16px;font-size:11.5px;color:var(--dim);flex-wrap:wrap;
+  margin-top:12px;padding-top:10px;border-top:1px solid #1a222e}
+.acct-foot b{font-weight:600;font-variant-numeric:tabular-nums}
+.accts.one{grid-template-columns:1fr;margin-bottom:12px}
+
+/* ---------------- 资金池环绕图 ---------------- */
+.pool-card{padding:16px 10px 12px;max-width:600px;margin:0 auto;
+  background:radial-gradient(120% 90% at 50% 42%,#151d29 0%,var(--card) 62%)}
+.pool-wrap{position:relative;width:100%;max-width:480px;margin:0 auto;
+  aspect-ratio:1/1;container-type:inline-size}
+.pool-links{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:1}
+.flow{animation:flowdash 1.15s linear infinite}
+@keyframes flowdash{from{stroke-dashoffset:0}to{stroke-dashoffset:-10}}
+
+.pool-core{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:30%;aspect-ratio:1/1;border-radius:50%;z-index:3;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+  background:radial-gradient(circle at 50% 34%,#1f2a3a 0%,#141b26 58%,#0f141c 100%);
+  border:1px solid #35465e;
+  box-shadow:0 0 0 7px rgba(232,180,74,.05),0 12px 34px rgba(0,0,0,.55),
+    inset 0 1px 0 rgba(232,180,74,.18)}
+.pool-core:before{content:"";position:absolute;inset:-17%;border-radius:50%;
+  border:1px solid rgba(232,180,74,.2);animation:corePulse 3.6s ease-in-out infinite;pointer-events:none}
+@keyframes corePulse{0%,100%{transform:scale(.95);opacity:.55}50%{transform:scale(1.04);opacity:.1}}
+.pc-k{font-size:clamp(8.5px,2.5cqw,11px);color:var(--dim);letter-spacing:.4px;white-space:nowrap}
+.pc-v{font-size:clamp(16px,5.6cqw,24px);font-weight:700;letter-spacing:-.7px;line-height:1.14;
+  font-variant-numeric:tabular-nums;margin:1px 0}
+.pc-s{font-size:clamp(8px,2.35cqw,10.5px);color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+.sat{position:absolute;transform:translate(-50%,-50%);width:32%;z-index:2;
+  background:linear-gradient(165deg,#17202c,#121821);border:1px solid #26313f;border-radius:11px;
+  padding:clamp(5px,1.7cqw,9px) clamp(5px,1.5cqw,9px);text-align:center;
+  box-shadow:0 8px 22px rgba(0,0,0,.4)}
+.sat.in{border-color:rgba(246,70,93,.4);box-shadow:0 8px 22px rgba(0,0,0,.4),0 0 18px rgba(246,70,93,.1)}
+.sat.out{border-color:rgba(14,203,129,.36);box-shadow:0 8px 22px rgba(0,0,0,.4),0 0 18px rgba(14,203,129,.09)}
+.s-t1{font-size:clamp(8px,2.25cqw,10px);color:var(--dim);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.s-t1 b{color:var(--tx);font-weight:600;margin-left:3px}
+/* 持仓表里的体检副行：只展示，不参与选股 */
+.fd{display:block;font-size:9.5px;line-height:1.35;color:var(--dim);
+  white-space:normal;word-break:break-all;max-width:130px;margin-top:1px}
+.fdw{display:block;font-size:9.5px;line-height:1.35;color:#d9756b;
+  white-space:normal;max-width:130px}
+.s-amt{font-size:clamp(12px,4.3cqw,17px);font-weight:700;letter-spacing:-.3px;line-height:1.22;
+  font-variant-numeric:tabular-nums}
+.s-amt i{font-size:.6em;font-weight:400;font-style:normal;color:var(--dim2);margin-left:1.5px}
+.s-t3{font-size:clamp(8px,2.35cqw,10.5px);color:var(--dim2);white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.pool-foot{display:flex;gap:8px 16px;justify-content:center;flex-wrap:wrap;font-size:11.5px;
+  color:var(--dim);margin-top:8px;padding-top:10px;border-top:1px solid #1a222e}
+.pool-foot b{font-weight:600;font-variant-numeric:tabular-nums}
+
+/* 区块 */
+section{margin-bottom:26px}
+.sec-hd{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:11px;flex-wrap:wrap}
+h2{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+h2:before{content:"";width:3px;height:14px;background:var(--gold);border-radius:2px;display:inline-block}
+.sec-note{font-size:11.5px;color:var(--dim)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+
+/* 统计格 */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.st{background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:12px 13px}
+.st-k{font-size:11.5px;color:var(--dim)}
+.st-v{font-size:20px;font-weight:700;margin:3px 0 1px;font-variant-numeric:tabular-nums;letter-spacing:-.3px}
+.st-d{font-size:10.5px;color:var(--dim2)}
+
+/* 图 */
+.chart-box{position:relative}
+svg{display:block;width:100%;height:auto;overflow:visible}
+.legend{display:flex;gap:16px;font-size:11.5px;color:var(--dim);margin-top:10px;flex-wrap:wrap}
+.legend i{display:inline-block;width:14px;height:2.5px;border-radius:2px;margin-right:6px;vertical-align:middle}
+#tip{position:absolute;pointer-events:none;background:#1b2432;border:1px solid #2c3949;border-radius:8px;
+  padding:7px 10px;font-size:11.5px;line-height:1.5;white-space:nowrap;opacity:0;transition:opacity .1s;
+  box-shadow:0 6px 20px rgba(0,0,0,.5);z-index:9;transform:translate(-50%,-108%)}
+#tip b{font-variant-numeric:tabular-nums}
+
+/* 表 */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:12.5px;white-space:nowrap}
+th{font-size:11px;font-weight:500;color:var(--dim);text-align:right;padding:8px 9px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card);z-index:2}
+th:first-child,td:first-child{text-align:left;padding-left:2px}
+th.l,td.l{text-align:left}
+td{padding:9px;border-bottom:1px solid #161d27;text-align:right;font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#151c26}
+td.nm{text-align:left;color:var(--tx);max-width:110px;overflow:hidden;text-overflow:ellipsis}
+td.why{text-align:left;font-size:11px;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.empty{text-align:center;color:var(--dim2);padding:22px}
+.scroll{max-height:420px;overflow-y:auto}
+
+/* 下一步 */
+.next{background:linear-gradient(135deg,#17202c,#121821);border:1px solid #2b3a4d;border-radius:13px;
+  padding:14px 17px;margin-bottom:22px;display:flex;gap:13px;align-items:center;flex-wrap:wrap}
+.next-k{font-size:11px;color:#0ecb81;border:1px solid rgba(14,203,129,.32);background:rgba(14,203,129,.08);
+  padding:3px 10px;border-radius:20px;white-space:nowrap;flex:0 0 auto}
+.next-v{font-size:14px;font-weight:500;flex:1 1 auto;min-width:200px}
+.next-v b{color:var(--gold)}
+.next-d{font-size:11.5px;color:var(--dim);flex:1 0 100%;margin:0;line-height:1.6}
+
+/* 停摆提醒 */
+.alert{background:linear-gradient(160deg,#1e1217,#141821);border:1px solid #4a2430;border-radius:13px;
+  padding:14px 17px;margin-bottom:11px;font-size:12.5px;line-height:1.72;color:#ceb0b7}
+.alert>b{color:#f6465d;display:block;margin-bottom:4px;font-size:13px}
+.alert-note{color:#8b7a80;font-size:11.5px;margin-top:6px;border-top:1px dashed #3a2530;padding-top:7px}
+.alert.stale{background:linear-gradient(160deg,#201a10,#141821);border-color:#4a3c1e}
+.alert.stale>b{color:#e8b44a}
+.alert.stale .alert-note{color:#9a8a63;border-top-color:#3a3018}
+.alert.stale a{color:#e8b44a;text-decoration:underline}
+.flag{font-size:9.5px;color:#f6465d;border:1px solid rgba(246,70,93,.42);background:rgba(246,70,93,.1);
+  padding:1px 5px;border-radius:3px;margin-left:5px;vertical-align:1px;white-space:nowrap}
+tr.rowwarn td{background:rgba(246,70,93,.035)}
+
+/* 提示块 */
+.warn{background:linear-gradient(160deg,#1a1410,#141821);border:1px solid #3a2f1e;border-radius:13px;padding:15px 17px}
+.warn h3{font-size:13px;color:#e8b44a;margin-bottom:9px;font-weight:600}
+.warn ul{list-style:none}
+.warn li{font-size:12.5px;color:#b9c2ce;padding-left:16px;position:relative;margin-bottom:7px;line-height:1.6}
+.warn li:before{content:"—";position:absolute;left:0;color:#6b5a34}
+.warn li:last-child{margin-bottom:0}
+
+.note{font-size:12px;color:var(--dim);margin-top:9px;line-height:1.65}
+footer{text-align:center;font-size:11px;color:var(--dim2);margin-top:34px;padding-top:18px;border-top:1px solid var(--line)}
+
+@media(max-width:760px){
+  .accts{grid-template-columns:1fr;gap:11px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .acct-num{font-size:29px}
+  h1{font-size:17px}
+  .wrap{padding:0 12px}
+  body{overflow-x:hidden}
+  .card{padding:13px;border-radius:12px}
+  table{font-size:12px}
+  td,th{padding:8px 7px}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap" id="app">
+<!--APP_START-->
+
+  <header>
+    <div class="hd">
+      <h1>A股量化 · <span>账户看板</span></h1>
+      <div class="hd-meta">
+        数据截至 <b>2026-10-30</b><br>
+        因子链信号日 <b>2026-09-30</b>
+        <div><span class="ctag">静态快照 · 每日 15:32 自动更新</span></div>
+      </div>
+    </div>
+  </header>
+
+  
+<section>
+  <div class="sec-hd">
+    <h2>资金池 · 3 万本金</h2>
+    <div class="sec-note">中间是钱，四周是持仓 · 红线往里流=赚，绿线往外流=亏
+      · <span id="liveTag" class="dim2">价格加载中…</span></div>
+  </div>
+  <div class="card pool-card">
+    <div class="pool-wrap">
+      <svg class="pool-links" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M 50.00 31.60 L 50.00 25.20" fill="none" stroke="#0ecb81" stroke-width="3.43" opacity=".07" stroke-linecap="round"/><path d="M 50.00 31.60 L 50.00 25.20" fill="none" stroke="#0ecb81" stroke-width="1.23" opacity=".92" stroke-dasharray="2.4 2.6" stroke-linecap="round" class="flow"/><polygon points="50.00,25.20 51.30,27.90 48.70,27.90" fill="#0ecb81" opacity=".95"/><circle r="1.25" fill="#0ecb81" opacity=".95"><animateMotion dur="1.9s" repeatCount="indefinite" path="M 50.00 31.60 L 50.00 25.20"/></circle><path d="M 37.60 63.60 L 27.11 75.11" fill="none" stroke="#0ecb81" stroke-width="3.74" opacity=".07" stroke-linecap="round"/><path d="M 37.60 63.60 L 27.11 75.11" fill="none" stroke="#0ecb81" stroke-width="1.54" opacity=".92" stroke-dasharray="2.4 2.6" stroke-linecap="round" class="flow"/><polygon points="27.11,75.11 27.97,72.23 29.89,73.99" fill="#0ecb81" opacity=".95"/><circle r="1.25" fill="#0ecb81" opacity=".95"><animateMotion dur="1.6s" repeatCount="indefinite" path="M 37.60 63.60 L 27.11 75.11"/></circle><path d="M 72.89 75.11 L 62.40 63.60" fill="none" stroke="#f6465d" stroke-width="4.42" opacity=".07" stroke-linecap="round"/><path d="M 72.89 75.11 L 62.40 63.60" fill="none" stroke="#f6465d" stroke-width="2.22" opacity=".92" stroke-dasharray="2.4 2.6" stroke-linecap="round" class="flow"/><polygon points="62.40,63.60 65.18,64.72 63.26,66.47" fill="#f6465d" opacity=".95"/><circle r="1.25" fill="#f6465d" opacity=".95"><animateMotion dur="1.5s" repeatCount="indefinite" path="M 72.89 75.11 L 62.40 63.60"/></circle></svg>
+      
+      <div class="pool-core">
+        <div class="pc-k">资金池 · 总资产</div>
+        <div class="pc-v" id="poolTotal">30,072</div>
+        <div class="pc-s">本金 3 万 · 本期 <b class="up" id="poolPct">+0.24%</b></div>
+      </div>
+      
+      <div class="sat out" data-code="603014"
+           data-lots="3.0" data-cost="9264.0"
+           style="left:50.0%;top:15.0%">
+        <div class="s-t1">603014<b>威高血净</b></div>
+        <div class="s-amt down" data-amt>-378<i>元</i></div>
+        <div class="s-t3"><span class="down" data-pnl>&#9660; -4.08%</span>
+          · <span data-val>8,886</span> 元</div>
+      </div>
+      <div class="sat out" data-code="002441"
+           data-lots="12.0" data-cost="9924.0"
+           style="left:19.0%;top:84.0%">
+        <div class="s-t1">002441<b>众业达</b></div>
+        <div class="s-amt down" data-amt>-588<i>元</i></div>
+        <div class="s-t3"><span class="down" data-pnl>&#9660; -5.93%</span>
+          · <span data-val>9,336</span> 元</div>
+      </div>
+      <div class="sat in" data-code="603656"
+           data-lots="6.0" data-cost="10356.0"
+           style="left:81.0%;top:84.0%">
+        <div class="s-t1">603656<b>泰禾智能</b></div>
+        <div class="s-amt up" data-amt>+1,038<i>元</i></div>
+        <div class="s-t3"><span class="up" data-pnl>&#9650; +10.02%</span>
+          · <span data-val>11,394</span> 元</div>
+      </div>
+    </div>
+    <div class="pool-foot"><span>浮盈 <b class="up" id="poolIn">+1,038</b> · 浮亏 <b class="down" id="poolOut">-966</b></span><span>3 只 · 已投 <b>29,544</b> 元</span><span>剩余现金 <b>456</b> 元</span><span class="dim2">整手买入 · 持有期不止盈不止损</span></div>
+  </div>
+</section>
+
+  <section>
+    <div class="sec-hd">
+      <h2>当前持仓 · 因子链</h2>
+      <div class="sec-note">3 只 · 3 万整手买入（金额不等权）· 余钱够才加一只 · 10-30 周五 换仓</div>
+    </div>
+    <div class="card">
+      <div class="tw">
+        <table>
+          <thead><tr>
+            <th class="l">代码</th><th class="l">名称</th><th>成本</th><th>现价</th>
+            <th>持仓(元)</th><th>盈亏(元)</th><th>盈亏%</th><th>占比</th>
+          </tr></thead>
+          <tbody>
+          <tr data-code="603014" data-lots="3" data-cost="9264.0">
+            <td class="mono">603014</td>
+            <td class="nm">威高血净<span class="fd">医疗器械 · ROE 8.2% · 营收 +5.3% · 净利 +4.5%</span></td>
+            <td class="num mono dim">30.88</td>
+            <td class="num mono" data-cur>29.62</td>
+            <td class="num mono dim" data-val>8,886</td>
+            <td class="num mono down" data-amt>-378</td>
+            <td class="num mono down" data-pnl>-4.08%</td>
+            <td class="num mono dim" title="成本 9,264 元 → 市值 8,886 元 · 选股依据：流通市值 31.3 亿 · 20 日换手 0.88% · 20 日波动 0.86% · 综合分 -2.718 · 体检（2026-09-30）：医疗器械 · ROE 8.2% · 营收 +5.3% · 净利 +4.5%" data-w>30%</td>
+          </tr>
+          <tr data-code="002441" data-lots="12" data-cost="9924.0">
+            <td class="mono">002441</td>
+            <td class="nm">众业达<span class="fd">电网设备 · ROE 4.7% · 营收 +10.6% · 净利 +17.6%</span></td>
+            <td class="num mono dim">8.27</td>
+            <td class="num mono" data-cur>7.78</td>
+            <td class="num mono dim" data-val>9,336</td>
+            <td class="num mono down" data-amt>-588</td>
+            <td class="num mono down" data-pnl>-5.93%</td>
+            <td class="num mono dim" title="成本 9,924 元 → 市值 9,336 元 · 选股依据：流通市值 33.0 亿 · 20 日换手 1.04% · 20 日波动 0.80% · 综合分 -2.673 · 体检（2026-09-30）：电网设备 · ROE 4.7% · 营收 +10.6% · 净利 +17.6%" data-w>32%</td>
+          </tr>
+          <tr data-code="603656" data-lots="6" data-cost="10356.0">
+            <td class="mono">603656</td>
+            <td class="nm">泰禾智能<span class="fd">专用设备 · ROE 2.3% · 营收 +14.5% · 净利 +6.3%</span></td>
+            <td class="num mono dim">17.26</td>
+            <td class="num mono" data-cur>18.99</td>
+            <td class="num mono dim" data-val>11,394</td>
+            <td class="num mono up" data-amt>+1,038</td>
+            <td class="num mono up" data-pnl>+10.02%</td>
+            <td class="num mono dim" title="成本 10,356 元 → 市值 11,394 元 · 选股依据：流通市值 31.5 亿 · 20 日换手 0.80% · 20 日波动 0.98% · 综合分 -2.639 · 体检（2026-09-30）：专用设备 · ROE 2.3% · 营收 +14.5% · 净利 +6.3%" data-w>38%</td>
+          </tr></tbody>
+        </table>
+      </div>
+      <div class="note">选股逻辑：在全市场主板里同时取「流通市值最小、20 日换手最低、20 日波动最低」三项排名，等权合成综合分，取前 3 只，持有一个月，月末收盘算信号、次日开盘买入。中途不止盈不止损（回测：−8%/−10% 止损只会削收益）。</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd"><h2>关键指标 · 回测</h2>
+      <div class="sec-note">全部是 2020-01 起 80 个月的回测值，<b>不是</b>你 3 万实盘的收益</div>
+    </div>
+    <div class="stats"><div class="st"><div class="st-k">年化收益</div><div class="st-v up">19.66%</div><div class="st-d">6.66 年 CAGR</div></div><div class="st"><div class="st-k">月胜率</div><div class="st-v ">57.5%</div><div class="st-d">46/80 个月赚钱</div></div><div class="st"><div class="st-k">最大回撤</div><div class="st-v down">-29.91%</div><div class="st-d">最长连亏 4 个月</div></div><div class="st"><div class="st-k">夏普比率</div><div class="st-v ">0.83</div><div class="st-d">无风险利率按 0</div></div><div class="st"><div class="st-k">最好月</div><div class="st-v up">+23.58%</div><div class="st-d">单月最高</div></div><div class="st"><div class="st-k">最差月</div><div class="st-v down">-14.75%</div><div class="st-d">单月最低</div></div><div class="st"><div class="st-k">近 12 期</div><div class="st-v up">+3.42%</div><div class="st-d">沪深300 -15.23%</div></div><div class="st"><div class="st-k">近 24 期</div><div class="st-v up">+28.70%</div><div class="st-d">两年滚动</div></div></div>
+  </section>
+
+  
+        <div class="next">
+          <div class="next-k">新名单已出</div>
+          <div class="next-v">10-30 周五 收盘已算出 → <b>11-02 周一 开盘换仓</b></div>
+          <div class="next-d">把清单里不在新名单的卖掉，再按新名单买；每只按 3 万整手分配（见上表手数）。</div>
+        </div>
+
+  <section>
+    <div class="sec-hd">
+      <h2>净值曲线 · 回测</h2>
+      <div class="sec-note">这是 <b>2020-01 投 3 万、复利到今天</b> 的回测结果，不是你现在的账户
+        · 每月末调仓、扣 0.36% 双边费用 · 实盘看上方资金池</div>
+    </div>
+    <div class="card">
+      <div class="chart-box">
+        <svg id="navChart" viewBox="0 0 1000 340" preserveAspectRatio="xMidYMid meet"></svg>
+        <div id="tip"></div>
+      </div>
+      <div class="legend">
+        <span><i style="background:#e8b44a"></i>因子链 Top3</span>
+        <span><i style="background:#4c9aff"></i>等权全市场</span>
+        <span><i style="background:#5a6472"></i>沪深300</span>
+        <span style="margin-left:auto">起点 3 万</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd">
+      <h2>每月盈亏</h2>
+      <div class="sec-note">红涨绿跌 · 柱子含当月费用</div>
+    </div>
+    <div class="card">
+      <div class="chart-box">
+        <svg id="barChart" viewBox="0 0 1000 220" preserveAspectRatio="xMidYMid meet"></svg>
+        <div id="tip2"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd">
+      <h2>年度表现</h2>
+      <div class="sec-note">按自然年拼接，与沪深300 对比</div>
+    </div>
+    <div class="card">
+      <div class="tw">
+        <table>
+          <thead><tr>
+            <th class="l">年份</th><th>期数</th><th>本策略</th><th>沪深300</th><th>超额</th><th>胜率</th>
+          </tr></thead>
+          <tbody>
+          <tr>
+            <td class="mono">2020</td>
+            <td class="num mono">10 期</td>
+            <td class="num mono up">+64.95%</td>
+            <td class="num mono up">+28.33%</td>
+            <td class="num mono up">+36.62pp</td>
+            <td class="num mono dim">90%</td>
+          </tr>
+          <tr>
+            <td class="mono">2021</td>
+            <td class="num mono">12 期</td>
+            <td class="num mono up">+46.63%</td>
+            <td class="num mono down">-6.13%</td>
+            <td class="num mono up">+52.76pp</td>
+            <td class="num mono dim">67%</td>
+          </tr>
+          <tr>
+            <td class="mono">2022</td>
+            <td class="num mono">12 期</td>
+            <td class="num mono up">+11.41%</td>
+            <td class="num mono down">-23.80%</td>
+            <td class="num mono up">+35.21pp</td>
+            <td class="num mono dim">42%</td>
+          </tr>
+          <tr>
+            <td class="mono">2023</td>
+            <td class="num mono">12 期</td>
+            <td class="num mono up">+2.59%</td>
+            <td class="num mono down">-12.06%</td>
+            <td class="num mono up">+14.65pp</td>
+            <td class="num mono dim">50%</td>
+          </tr>
+          <tr>
+            <td class="mono">2024</td>
+            <td class="num mono">12 期</td>
+            <td class="num mono up">+3.87%</td>
+            <td class="num mono up">+3.30%</td>
+            <td class="num mono up">+0.57pp</td>
+            <td class="num mono dim">50%</td>
+          </tr>
+          <tr>
+            <td class="mono">2025</td>
+            <td class="num mono">12 期</td>
+            <td class="num mono up">+8.91%</td>
+            <td class="num mono up">+14.83%</td>
+            <td class="num mono down">-5.92pp</td>
+            <td class="num mono dim">58%</td>
+          </tr>
+          <tr>
+            <td class="mono">2026</td>
+            <td class="num mono">10 期</td>
+            <td class="num mono up">+5.69%</td>
+            <td class="num mono down">-14.87%</td>
+            <td class="num mono up">+20.56pp</td>
+            <td class="num mono dim">50%</td>
+          </tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd">
+      <h2>曲线 B · 日内模拟盘明细</h2>
+      <div class="sec-note">这条是反面对照，不是能赚钱的策略</div>
+    </div>
+    
+    <div class="accts one">
+      <div class="acct">
+        <div class="acct-tag">曲线 B · 日内模拟盘 <span class="badge bad">回测已证伪</span>
+          <span class="badge">100 万口径</span></div>
+        <div class="acct-num">915,271<span class="unit">元</span></div>
+        <div class="acct-sub"><span class="big down">-8.47%</span>
+          <span class="dim">累计 · 6 个记录日 · 2026-10-08 起 · 本金 100 万</span></div>
+        <div class="acct-foot">
+          <span>当日 <b class="flat">0.00%</b></span>
+          <span>已实现 <b class="up">-84,730</b></span>
+          <span>回撤 <b class="down">-8.5%</b></span>
+        </div>
+      </div></div>
+    <div class="card">
+      <div class="tw">
+        <table>
+          <thead><tr>
+            <th class="l">代码</th><th class="l">名称</th><th>买入</th><th>现价</th>
+            <th>盈亏</th><th>市值</th><th>止损</th><th>持有</th>
+          </tr></thead>
+          <tbody><tr><td colspan="8" class="empty">暂无持仓</td></tr></tbody>
+        </table>
+      </div>
+      <div class="note">买入依据是「站上均价线 + 涨幅 0.3~3%」。回测 111 万个样本显示：
+        这套条件次日扣费后 −0.275%，比全市场基准还差。停用自动买入后，这里只剩旧仓在按止损规则退出。</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd">
+      <h2>卖出流水</h2>
+      <div class="sec-note">最近 12 笔</div>
+    </div>
+    <div class="card">
+      <div class="tw">
+        <table>
+          <thead><tr>
+            <th class="l">日期</th><th class="l">代码</th><th class="l">名称</th>
+            <th>买入 → 卖出</th><th>盈亏</th><th>金额</th><th class="l">原因</th>
+          </tr></thead>
+          <tbody>
+          <tr>
+            <td class="mono dim">10-29</td>
+            <td class="mono">002506</td>
+            <td class="nm">协鑫集成</td>
+            <td class="num mono dim">2.39 → 2.20</td>
+            <td class="num mono down">-7.95%</td>
+            <td class="num mono down">-12,410</td>
+            <td class="why dim">稳健止损 亏损-7.9%</td>
+          </tr>
+          <tr>
+            <td class="mono dim">10-29</td>
+            <td class="mono">002011</td>
+            <td class="nm">盾安环境</td>
+            <td class="num mono dim">12.74 → 11.19</td>
+            <td class="num mono down">-12.17%</td>
+            <td class="num mono down">-18,606</td>
+            <td class="why dim">稳健止损 亏损-12.2%</td>
+          </tr>
+          <tr>
+            <td class="mono dim">10-29</td>
+            <td class="mono">603228</td>
+            <td class="nm">景旺电子</td>
+            <td class="num mono dim">101.98 → 69.23</td>
+            <td class="num mono down">-32.11%</td>
+            <td class="num mono down">-46,199</td>
+            <td class="why dim">稳健止损 亏损-32.1%</td>
+          </tr>
+          <tr>
+            <td class="mono dim">10-29</td>
+            <td class="mono">000690</td>
+            <td class="nm">宝新能源</td>
+            <td class="num mono dim">5.24 → 5.42</td>
+            <td class="num mono up">+3.44%</td>
+            <td class="num mono up">+4,590</td>
+            <td class="why dim">持仓15个交易日，强制清仓</td>
+          </tr>
+          <tr>
+            <td class="mono dim">10-29</td>
+            <td class="mono">002171</td>
+            <td class="nm">楚江新材</td>
+            <td class="num mono dim">9.89 → 8.59</td>
+            <td class="num mono down">-13.14%</td>
+            <td class="num mono down">-20,097</td>
+            <td class="why dim">稳健止损 亏损-13.1%</td>
+          </tr>
+          <tr>
+            <td class="mono dim">10-08</td>
+            <td class="mono">002262</td>
+            <td class="nm">恩华药业</td>
+            <td class="num mono dim">21.64 → 22.20</td>
+            <td class="num mono up">+2.59%</td>
+            <td class="num mono up">+672</td>
+            <td class="why dim">持仓9天，强制清仓</td>
+          </tr>
+          <tr>
+            <td class="mono dim">10-08</td>
+            <td class="mono">512010</td>
+            <td class="nm">医药ETF易方达</td>
+            <td class="num mono dim">0.38 → 0.39</td>
+            <td class="num mono up">+2.11%</td>
+            <td class="num mono up">+2,632</td>
+            <td class="why dim">持仓9天，强制清仓</td>
+          </tr>
+          <tr>
+            <td class="mono dim">10-08</td>
+            <td class="mono">002039</td>
+            <td class="nm">黔源电力</td>
+            <td class="num mono dim">19.55 → 19.59</td>
+            <td class="num mono up">+0.20%</td>
+            <td class="num mono up">+204</td>
+            <td class="why dim">持仓9天，强制清仓</td>
+          </tr>
+          <tr>
+            <td class="mono dim">10-08</td>
+            <td class="mono">000690</td>
+            <td class="nm">宝新能源</td>
+            <td class="num mono dim">5.22 → 5.24</td>
+            <td class="num mono up">+0.38%</td>
+            <td class="num mono up">+382</td>
+            <td class="why dim">持仓9天，强制清仓</td>
+          </tr>
+          <tr>
+            <td class="mono dim">10-08</td>
+            <td class="mono">603939</td>
+            <td class="nm">益丰药房</td>
+            <td class="num mono dim">22.62 → 23.33</td>
+            <td class="num mono up">+3.14%</td>
+            <td class="num mono up">+3,376</td>
+            <td class="why dim">持仓9天，强制清仓</td>
+          </tr>
+          <tr>
+            <td class="mono dim">10-08</td>
+            <td class="mono">002262</td>
+            <td class="nm">恩华药业</td>
+            <td class="num mono dim">21.64 → 22.30</td>
+            <td class="num mono up">+3.05%</td>
+            <td class="num mono up">+726</td>
+            <td class="why dim">[减半] 稳健减半锁利 峰值6.3%→3.0%</td>
+          </tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd">
+      <h2>风险说明</h2>
+      <div class="sec-note">这一段比上面的数字重要</div>
+    </div>
+    <div class="warn">
+      <h3>这些数字要打折看</h3>
+      <ul><li>年化 19.66% 是「回测/纸面」结果，不是能拿到的钱。<b>真实预期按 3~8%/年 想。</b></li><li>这些收益是 2020-2021 两年造的（两年 +167%），之后五年只有 +40%（年化 7.0%）；近 46 期年化 5.84%，同期国证2000 是 2.72%。再往下还要扣 3~8pp 的退市成本（池子里零退市，真实市场 6 年退市 200+ 只）。</li><li><b>统计上到底显不显著</b>：策略对 0 的检验 t = 2.15（80 期），p≈0.03，<b>单看是过的</b>。但三条都挡着：① 对基准的超额 p = 0.145，不显著；② 这套参数是我试了 6 个变体 + 十档 + TopN 共 18 次以上挑出来的，Bonferroni 门槛是 0.0028，实际过不了；③ 剔除最好的 5 个月后年化只剩 4.96%。更关键的是<b>「选股」这一步</b>：池内随机抽 3 只的年化中位是 8.8%，本策略在 93.6 分位，但配对 t 只有 1.54；Top1 只有 10.6%、Top3 19.9%、Top5 16.0% —— 峰顶恰好落在运行点上，是取点运气。<b>选股贡献按 0 计。</b></li><li><b>真正的收益来源是「21~30 亿 + 几乎没人交易」这个极窄角落，不是因子。</b>流通市值下限抬到 40 亿、或换手下限抬到 2.0%，年化直接归零（池子仍有 79 只，不是样本不足）。而池子中位流通市值已从 2020 年的 31.0 亿涨到 37.1 亿、换手 0.91%→1.25% —— <b>这个角落正在关闭</b>。硬阈值：中位 >40 亿或换手 >1.8% 即停新增买入。</li><li>收益高度集中在少数几个月。最好 5 个月贡献了总收益的七成，去掉它们年化只剩个位数。所以中途某一年跑输大盘是正常的。</li><li>最大回撤 -29.91%，最长连亏 4 个月 —— 这是真实会经历的，不是理论数字。真金白银时要想清楚扛不扛得住。</li><li>页面上的「现价」若是盘中抓的，浮动盈亏会随分时变动；收盘后看才准。</li></ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd">
+      <h2>逐月明细</h2>
+      <div class="sec-note">全部月份，可上下滚动</div>
+    </div>
+    <div class="card">
+      <div class="tw scroll">
+        <table>
+          <thead><tr>
+            <th class="l">月份</th><th>本策略</th><th>沪深300</th><th>超额</th><th>净值</th><th>累计</th>
+          </tr></thead>
+          <tbody>
+          <tr>
+            <td class="mono">2026-10</td>
+            <td class="num mono down">-0.35%</td>
+            <td class="num mono down">-8.48%</td>
+            <td class="num mono up">+8.13pp</td>
+            <td class="num mono dim">99,152</td>
+            <td class="num mono up">+230.51%</td>
+          </tr>
+          <tr>
+            <td class="mono">2026-09</td>
+            <td class="num mono up">+16.70%</td>
+            <td class="num mono down">-5.65%</td>
+            <td class="num mono up">+22.35pp</td>
+            <td class="num mono dim">99,505</td>
+            <td class="num mono up">+231.68%</td>
+          </tr>
+          <tr>
+            <td class="mono">2026-08</td>
+            <td class="num mono down">-3.81%</td>
+            <td class="num mono up">+1.39%</td>
+            <td class="num mono down">-5.20pp</td>
+            <td class="num mono dim">85,265</td>
+            <td class="num mono up">+184.22%</td>
+          </tr>
+          <tr>
+            <td class="mono">2026-07</td>
+            <td class="num mono up">+10.24%</td>
+            <td class="num mono down">-7.73%</td>
+            <td class="num mono up">+17.97pp</td>
+            <td class="num mono dim">88,641</td>
+            <td class="num mono up">+195.47%</td>
+          </tr>
+          <tr>
+            <td class="mono">2026-06</td>
+            <td class="num mono down">-14.27%</td>
+            <td class="num mono up">+1.67%</td>
+            <td class="num mono down">-15.94pp</td>
+            <td class="num mono dim">80,407</td>
+            <td class="num mono up">+168.02%</td>
+          </tr>
+          <tr>
+            <td class="mono">2026-05</td>
+            <td class="num mono down">-6.54%</td>
+            <td class="num mono up">+0.71%</td>
+            <td class="num mono down">-7.25pp</td>
+            <td class="num mono dim">93,794</td>
+            <td class="num mono up">+212.65%</td>
+          </tr>
+          <tr>
+            <td class="mono">2026-04</td>
+            <td class="num mono up">+2.37%</td>
+            <td class="num mono up">+6.42%</td>
+            <td class="num mono down">-4.05pp</td>
+            <td class="num mono dim">100,351</td>
+            <td class="num mono up">+234.50%</td>
+          </tr>
+          <tr>
+            <td class="mono">2026-03</td>
+            <td class="num mono down">-1.93%</td>
+            <td class="num mono down">-4.93%</td>
+            <td class="num mono up">+3.00pp</td>
+            <td class="num mono dim">98,031</td>
+            <td class="num mono up">+226.77%</td>
+          </tr>
+          <tr>
+            <td class="mono">2026-02</td>
+            <td class="num mono up">+1.01%</td>
+            <td class="num mono up">+0.78%</td>
+            <td class="num mono up">+0.23pp</td>
+            <td class="num mono dim">99,963</td>
+            <td class="num mono up">+233.21%</td>
+          </tr>
+          <tr>
+            <td class="mono">2026-01</td>
+            <td class="num mono up">+5.50%</td>
+            <td class="num mono up">+0.96%</td>
+            <td class="num mono up">+4.54pp</td>
+            <td class="num mono dim">98,966</td>
+            <td class="num mono up">+229.89%</td>
+          </tr>
+          <tr>
+            <td class="mono">2025-12</td>
+            <td class="num mono down">-2.39%</td>
+            <td class="num mono up">+2.00%</td>
+            <td class="num mono down">-4.39pp</td>
+            <td class="num mono dim">93,810</td>
+            <td class="num mono up">+212.70%</td>
+          </tr>
+          <tr>
+            <td class="mono">2025-11</td>
+            <td class="num mono up">+0.25%</td>
+            <td class="num mono down">-2.37%</td>
+            <td class="num mono up">+2.62pp</td>
+            <td class="num mono dim">96,107</td>
+            <td class="num mono up">+220.36%</td>
+          </tr>
+          <tr>
+            <td class="mono">2025-10</td>
+            <td class="num mono up">+3.38%</td>
+            <td class="num mono down">-0.46%</td>
+            <td class="num mono up">+3.84pp</td>
+            <td class="num mono dim">95,869</td>
+            <td class="num mono up">+219.56%</td>
+          </tr>
+          <tr>
+            <td class="mono">2025-09</td>
+            <td class="num mono down">-3.22%</td>
+            <td class="num mono up">+2.74%</td>
+            <td class="num mono down">-5.96pp</td>
+            <td class="num mono dim">92,730</td>
+            <td class="num mono up">+209.10%</td>
+          </tr>
+          <tr>
+            <td class="mono">2025-08</td>
+            <td class="num mono up">+0.71%</td>
+            <td class="num mono up">+10.49%</td>
+            <td class="num mono down">-9.78pp</td>
+            <td class="num mono dim">95,817</td>
+            <td class="num mono up">+219.39%</td>
+          </tr>
+          <tr>
+            <td class="mono">2025-07</td>
+            <td class="num mono down">-0.02%</td>
+            <td class="num mono up">+3.55%</td>
+            <td class="num mono down">-3.57pp</td>
+            <td class="num mono dim">95,141</td>
+            <td class="num mono up">+217.14%</td>
+          </tr>
+          <tr>
+            <td class="mono">2025-06</td>
+            <td class="num mono up">+4.63%</td>
+            <td class="num mono up">+2.68%</td>
+            <td class="num mono up">+1.95pp</td>
+            <td class="num mono dim">95,161</td>
+            <td class="num mono up">+217.20%</td>
+          </tr>
+          <tr>
+            <td class="mono">2025-05</td>
+            <td class="num mono up">+3.31%</td>
+            <td class="num mono up">+1.21%</td>
+            <td class="num mono up">+2.10pp</td>
+            <td class="num mono dim">90,954</td>
+            <td class="num mono up">+203.18%</td>
+          </tr>
+          <tr>
+            <td class="mono">2025-04</td>
+            <td class="num mono up">+3.55%</td>
+            <td class="num mono down">-3.14%</td>
+            <td class="num mono up">+6.68pp</td>
+            <td class="num mono dim">88,042</td>
+            <td class="num mono up">+193.47%</td>
+          </tr>
+          <tr>
+            <td class="mono">2025-03</td>
+            <td class="num mono up">+1.83%</td>
+            <td class="num mono down">-0.32%</td>
+            <td class="num mono up">+2.15pp</td>
+            <td class="num mono dim">85,027</td>
+            <td class="num mono up">+183.42%</td>
+          </tr>
+          <tr>
+            <td class="mono">2025-02</td>
+            <td class="num mono down">-0.76%</td>
+            <td class="num mono up">+1.18%</td>
+            <td class="num mono down">-1.94pp</td>
+            <td class="num mono dim">83,496</td>
+            <td class="num mono up">+178.32%</td>
+          </tr>
+          <tr>
+            <td class="mono">2025-01</td>
+            <td class="num mono down">-2.32%</td>
+            <td class="num mono down">-2.92%</td>
+            <td class="num mono up">+0.60pp</td>
+            <td class="num mono dim">84,137</td>
+            <td class="num mono up">+180.46%</td>
+          </tr>
+          <tr>
+            <td class="mono">2024-12</td>
+            <td class="num mono down">-5.76%</td>
+            <td class="num mono up">+0.65%</td>
+            <td class="num mono down">-6.41pp</td>
+            <td class="num mono dim">86,137</td>
+            <td class="num mono up">+187.12%</td>
+          </tr>
+          <tr>
+            <td class="mono">2024-11</td>
+            <td class="num mono up">+18.64%</td>
+            <td class="num mono up">+0.88%</td>
+            <td class="num mono up">+17.76pp</td>
+            <td class="num mono dim">91,403</td>
+            <td class="num mono up">+204.68%</td>
+          </tr>
+          <tr>
+            <td class="mono">2024-10</td>
+            <td class="num mono up">+3.21%</td>
+            <td class="num mono down">-12.57%</td>
+            <td class="num mono up">+15.78pp</td>
+            <td class="num mono dim">77,040</td>
+            <td class="num mono up">+156.80%</td>
+          </tr>
+          <tr>
+            <td class="mono">2024-09</td>
+            <td class="num mono up">+20.85%</td>
+            <td class="num mono up">+21.48%</td>
+            <td class="num mono down">-0.62pp</td>
+            <td class="num mono dim">74,641</td>
+            <td class="num mono up">+148.80%</td>
+          </tr>
+          <tr>
+            <td class="mono">2024-08</td>
+            <td class="num mono down">-2.71%</td>
+            <td class="num mono down">-3.54%</td>
+            <td class="num mono up">+0.83pp</td>
+            <td class="num mono dim">61,762</td>
+            <td class="num mono up">+105.88%</td>
+          </tr>
+          <tr>
+            <td class="mono">2024-07</td>
+            <td class="num mono down">-5.05%</td>
+            <td class="num mono down">-0.47%</td>
+            <td class="num mono down">-4.58pp</td>
+            <td class="num mono dim">63,480</td>
+            <td class="num mono up">+111.60%</td>
+          </tr>
+          <tr>
+            <td class="mono">2024-06</td>
+            <td class="num mono down">-7.49%</td>
+            <td class="num mono down">-3.23%</td>
+            <td class="num mono down">-4.25pp</td>
+            <td class="num mono dim">66,855</td>
+            <td class="num mono up">+122.85%</td>
+          </tr>
+          <tr>
+            <td class="mono">2024-05</td>
+            <td class="num mono down">-3.60%</td>
+            <td class="num mono down">-2.03%</td>
+            <td class="num mono down">-1.57pp</td>
+            <td class="num mono dim">72,265</td>
+            <td class="num mono up">+140.88%</td>
+          </tr>
+          <tr>
+            <td class="mono">2024-04</td>
+            <td class="num mono up">+0.77%</td>
+            <td class="num mono up">+1.49%</td>
+            <td class="num mono down">-0.72pp</td>
+            <td class="num mono dim">74,962</td>
+            <td class="num mono up">+149.87%</td>
+          </tr>
+          <tr>
+            <td class="mono">2024-03</td>
+            <td class="num mono up">+3.68%</td>
+            <td class="num mono up">+0.64%</td>
+            <td class="num mono up">+3.04pp</td>
+            <td class="num mono dim">74,391</td>
+            <td class="num mono up">+147.97%</td>
+          </tr>
+          <tr>
+            <td class="mono">2024-02</td>
+            <td class="num mono up">+1.49%</td>
+            <td class="num mono up">+9.80%</td>
+            <td class="num mono down">-8.31pp</td>
+            <td class="num mono dim">71,752</td>
+            <td class="num mono up">+139.17%</td>
+          </tr>
+          <tr>
+            <td class="mono">2024-01</td>
+            <td class="num mono down">-14.75%</td>
+            <td class="num mono down">-6.16%</td>
+            <td class="num mono down">-8.59pp</td>
+            <td class="num mono dim">70,701</td>
+            <td class="num mono up">+135.67%</td>
+          </tr>
+          <tr>
+            <td class="mono">2023-12</td>
+            <td class="num mono down">-2.52%</td>
+            <td class="num mono down">-1.81%</td>
+            <td class="num mono down">-0.71pp</td>
+            <td class="num mono dim">82,931</td>
+            <td class="num mono up">+176.44%</td>
+          </tr>
+          <tr>
+            <td class="mono">2023-11</td>
+            <td class="num mono up">+2.79%</td>
+            <td class="num mono down">-3.04%</td>
+            <td class="num mono up">+5.83pp</td>
+            <td class="num mono dim">85,073</td>
+            <td class="num mono up">+183.58%</td>
+          </tr>
+          <tr>
+            <td class="mono">2023-10</td>
+            <td class="num mono down">-2.40%</td>
+            <td class="num mono down">-2.89%</td>
+            <td class="num mono up">+0.50pp</td>
+            <td class="num mono dim">82,764</td>
+            <td class="num mono up">+175.88%</td>
+          </tr>
+          <tr>
+            <td class="mono">2023-09</td>
+            <td class="num mono down">-0.39%</td>
+            <td class="num mono down">-2.37%</td>
+            <td class="num mono up">+1.97pp</td>
+            <td class="num mono dim">84,796</td>
+            <td class="num mono up">+182.66%</td>
+          </tr>
+          <tr>
+            <td class="mono">2023-08</td>
+            <td class="num mono down">-3.40%</td>
+            <td class="num mono down">-6.08%</td>
+            <td class="num mono up">+2.69pp</td>
+            <td class="num mono dim">85,129</td>
+            <td class="num mono up">+183.76%</td>
+          </tr>
+          <tr>
+            <td class="mono">2023-07</td>
+            <td class="num mono up">+5.49%</td>
+            <td class="num mono up">+4.19%</td>
+            <td class="num mono up">+1.30pp</td>
+            <td class="num mono dim">88,124</td>
+            <td class="num mono up">+193.75%</td>
+          </tr>
+          <tr>
+            <td class="mono">2023-06</td>
+            <td class="num mono up">+3.57%</td>
+            <td class="num mono up">+1.42%</td>
+            <td class="num mono up">+2.15pp</td>
+            <td class="num mono dim">83,536</td>
+            <td class="num mono up">+178.45%</td>
+          </tr>
+          <tr>
+            <td class="mono">2023-05</td>
+            <td class="num mono up">+0.40%</td>
+            <td class="num mono down">-5.36%</td>
+            <td class="num mono up">+5.75pp</td>
+            <td class="num mono dim">80,656</td>
+            <td class="num mono up">+168.85%</td>
+          </tr>
+          <tr>
+            <td class="mono">2023-04</td>
+            <td class="num mono down">-3.89%</td>
+            <td class="num mono down">-0.75%</td>
+            <td class="num mono down">-3.14pp</td>
+            <td class="num mono dim">80,338</td>
+            <td class="num mono up">+167.79%</td>
+          </tr>
+          <tr>
+            <td class="mono">2023-03</td>
+            <td class="num mono down">-3.50%</td>
+            <td class="num mono down">-0.44%</td>
+            <td class="num mono down">-3.06pp</td>
+            <td class="num mono dim">83,591</td>
+            <td class="num mono up">+178.64%</td>
+          </tr>
+          <tr>
+            <td class="mono">2023-02</td>
+            <td class="num mono up">+1.15%</td>
+            <td class="num mono down">-2.41%</td>
+            <td class="num mono up">+3.56pp</td>
+            <td class="num mono dim">86,622</td>
+            <td class="num mono up">+188.74%</td>
+          </tr>
+          <tr>
+            <td class="mono">2023-01</td>
+            <td class="num mono up">+5.94%</td>
+            <td class="num mono up">+7.56%</td>
+            <td class="num mono down">-1.61pp</td>
+            <td class="num mono dim">85,639</td>
+            <td class="num mono up">+185.46%</td>
+          </tr>
+          <tr>
+            <td class="mono">2022-12</td>
+            <td class="num mono down">-3.64%</td>
+            <td class="num mono down">-1.27%</td>
+            <td class="num mono down">-2.38pp</td>
+            <td class="num mono dim">80,835</td>
+            <td class="num mono up">+169.45%</td>
+          </tr>
+          <tr>
+            <td class="mono">2022-11</td>
+            <td class="num mono up">+11.81%</td>
+            <td class="num mono up">+9.47%</td>
+            <td class="num mono up">+2.34pp</td>
+            <td class="num mono dim">83,891</td>
+            <td class="num mono up">+179.64%</td>
+          </tr>
+          <tr>
+            <td class="mono">2022-10</td>
+            <td class="num mono up">+5.57%</td>
+            <td class="num mono down">-7.83%</td>
+            <td class="num mono up">+13.39pp</td>
+            <td class="num mono dim">75,028</td>
+            <td class="num mono up">+150.09%</td>
+          </tr>
+          <tr>
+            <td class="mono">2022-09</td>
+            <td class="num mono down">-5.44%</td>
+            <td class="num mono down">-6.43%</td>
+            <td class="num mono up">+0.99pp</td>
+            <td class="num mono dim">71,071</td>
+            <td class="num mono up">+136.90%</td>
+          </tr>
+          <tr>
+            <td class="mono">2022-08</td>
+            <td class="num mono down">-2.01%</td>
+            <td class="num mono down">-1.97%</td>
+            <td class="num mono down">-0.05pp</td>
+            <td class="num mono dim">75,157</td>
+            <td class="num mono up">+150.52%</td>
+          </tr>
+          <tr>
+            <td class="mono">2022-07</td>
+            <td class="num mono down">-0.76%</td>
+            <td class="num mono down">-7.12%</td>
+            <td class="num mono up">+6.36pp</td>
+            <td class="num mono dim">76,701</td>
+            <td class="num mono up">+155.67%</td>
+          </tr>
+          <tr>
+            <td class="mono">2022-06</td>
+            <td class="num mono up">+7.84%</td>
+            <td class="num mono up">+9.75%</td>
+            <td class="num mono down">-1.91pp</td>
+            <td class="num mono dim">77,286</td>
+            <td class="num mono up">+157.62%</td>
+          </tr>
+          <tr>
+            <td class="mono">2022-05</td>
+            <td class="num mono up">+18.33%</td>
+            <td class="num mono up">+2.41%</td>
+            <td class="num mono up">+15.93pp</td>
+            <td class="num mono dim">71,668</td>
+            <td class="num mono up">+138.89%</td>
+          </tr>
+          <tr>
+            <td class="mono">2022-04</td>
+            <td class="num mono down">-11.61%</td>
+            <td class="num mono down">-4.35%</td>
+            <td class="num mono down">-7.26pp</td>
+            <td class="num mono dim">60,564</td>
+            <td class="num mono up">+101.88%</td>
+          </tr>
+          <tr>
+            <td class="mono">2022-03</td>
+            <td class="num mono down">-3.48%</td>
+            <td class="num mono down">-8.16%</td>
+            <td class="num mono up">+4.68pp</td>
+            <td class="num mono dim">68,522</td>
+            <td class="num mono up">+128.41%</td>
+          </tr>
+          <tr>
+            <td class="mono">2022-02</td>
+            <td class="num mono up">+1.37%</td>
+            <td class="num mono down">-1.23%</td>
+            <td class="num mono up">+2.60pp</td>
+            <td class="num mono dim">70,992</td>
+            <td class="num mono up">+136.64%</td>
+          </tr>
+          <tr>
+            <td class="mono">2022-01</td>
+            <td class="num mono down">-3.48%</td>
+            <td class="num mono down">-7.95%</td>
+            <td class="num mono up">+4.47pp</td>
+            <td class="num mono dim">70,034</td>
+            <td class="num mono up">+133.45%</td>
+          </tr>
+          <tr>
+            <td class="mono">2021-12</td>
+            <td class="num mono up">+17.84%</td>
+            <td class="num mono up">+2.25%</td>
+            <td class="num mono up">+15.59pp</td>
+            <td class="num mono dim">72,559</td>
+            <td class="num mono up">+141.86%</td>
+          </tr>
+          <tr>
+            <td class="mono">2021-11</td>
+            <td class="num mono down">-1.76%</td>
+            <td class="num mono down">-0.94%</td>
+            <td class="num mono down">-0.81pp</td>
+            <td class="num mono dim">61,576</td>
+            <td class="num mono up">+105.25%</td>
+          </tr>
+          <tr>
+            <td class="mono">2021-10</td>
+            <td class="num mono up">+10.40%</td>
+            <td class="num mono down">-0.14%</td>
+            <td class="num mono up">+10.54pp</td>
+            <td class="num mono dim">62,677</td>
+            <td class="num mono up">+108.92%</td>
+          </tr>
+          <tr>
+            <td class="mono">2021-09</td>
+            <td class="num mono up">+2.86%</td>
+            <td class="num mono up">+1.28%</td>
+            <td class="num mono up">+1.58pp</td>
+            <td class="num mono dim">56,774</td>
+            <td class="num mono up">+89.25%</td>
+          </tr>
+          <tr>
+            <td class="mono">2021-08</td>
+            <td class="num mono up">+4.33%</td>
+            <td class="num mono up">+0.23%</td>
+            <td class="num mono up">+4.10pp</td>
+            <td class="num mono dim">55,195</td>
+            <td class="num mono up">+83.98%</td>
+          </tr>
+          <tr>
+            <td class="mono">2021-07</td>
+            <td class="num mono down">-2.49%</td>
+            <td class="num mono down">-8.21%</td>
+            <td class="num mono up">+5.71pp</td>
+            <td class="num mono dim">52,905</td>
+            <td class="num mono up">+76.35%</td>
+          </tr>
+          <tr>
+            <td class="mono">2021-06</td>
+            <td class="num mono down">-1.65%</td>
+            <td class="num mono down">-1.81%</td>
+            <td class="num mono up">+0.16pp</td>
+            <td class="num mono dim">54,257</td>
+            <td class="num mono up">+80.86%</td>
+          </tr>
+          <tr>
+            <td class="mono">2021-05</td>
+            <td class="num mono up">+0.03%</td>
+            <td class="num mono up">+4.57%</td>
+            <td class="num mono down">-4.54pp</td>
+            <td class="num mono dim">55,169</td>
+            <td class="num mono up">+83.90%</td>
+          </tr>
+          <tr>
+            <td class="mono">2021-04</td>
+            <td class="num mono up">+15.83%</td>
+            <td class="num mono up">+1.26%</td>
+            <td class="num mono up">+14.58pp</td>
+            <td class="num mono dim">55,155</td>
+            <td class="num mono up">+83.85%</td>
+          </tr>
+          <tr>
+            <td class="mono">2021-03</td>
+            <td class="num mono up">+1.67%</td>
+            <td class="num mono down">-6.33%</td>
+            <td class="num mono up">+8.00pp</td>
+            <td class="num mono dim">47,616</td>
+            <td class="num mono up">+58.72%</td>
+          </tr>
+          <tr>
+            <td class="mono">2021-02</td>
+            <td class="num mono up">+4.60%</td>
+            <td class="num mono down">-0.38%</td>
+            <td class="num mono up">+4.98pp</td>
+            <td class="num mono dim">46,832</td>
+            <td class="num mono up">+56.11%</td>
+          </tr>
+          <tr>
+            <td class="mono">2021-01</td>
+            <td class="num mono down">-9.53%</td>
+            <td class="num mono up">+2.67%</td>
+            <td class="num mono down">-12.19pp</td>
+            <td class="num mono dim">44,772</td>
+            <td class="num mono up">+49.24%</td>
+          </tr>
+          <tr>
+            <td class="mono">2020-12</td>
+            <td class="num mono up">+5.30%</td>
+            <td class="num mono up">+5.00%</td>
+            <td class="num mono up">+0.30pp</td>
+            <td class="num mono dim">49,485</td>
+            <td class="num mono up">+64.95%</td>
+          </tr>
+          <tr>
+            <td class="mono">2020-11</td>
+            <td class="num mono up">+1.74%</td>
+            <td class="num mono up">+5.48%</td>
+            <td class="num mono down">-3.73pp</td>
+            <td class="num mono dim">46,994</td>
+            <td class="num mono up">+56.65%</td>
+          </tr>
+          <tr>
+            <td class="mono">2020-10</td>
+            <td class="num mono up">+4.08%</td>
+            <td class="num mono up">+0.68%</td>
+            <td class="num mono up">+3.40pp</td>
+            <td class="num mono dim">46,189</td>
+            <td class="num mono up">+53.96%</td>
+          </tr>
+          <tr>
+            <td class="mono">2020-09</td>
+            <td class="num mono down">-6.29%</td>
+            <td class="num mono down">-4.50%</td>
+            <td class="num mono down">-1.80pp</td>
+            <td class="num mono dim">44,378</td>
+            <td class="num mono up">+47.92%</td>
+          </tr>
+          <tr>
+            <td class="mono">2020-08</td>
+            <td class="num mono up">+9.67%</td>
+            <td class="num mono up">+1.70%</td>
+            <td class="num mono up">+7.97pp</td>
+            <td class="num mono dim">47,358</td>
+            <td class="num mono up">+57.86%</td>
+          </tr>
+          <tr>
+            <td class="mono">2020-07</td>
+            <td class="num mono up">+23.58%</td>
+            <td class="num mono up">+12.52%</td>
+            <td class="num mono up">+11.06pp</td>
+            <td class="num mono dim">43,182</td>
+            <td class="num mono up">+43.94%</td>
+          </tr>
+          <tr>
+            <td class="mono">2020-06</td>
+            <td class="num mono up">+8.01%</td>
+            <td class="num mono up">+6.72%</td>
+            <td class="num mono up">+1.29pp</td>
+            <td class="num mono dim">34,941</td>
+            <td class="num mono up">+16.47%</td>
+          </tr>
+          <tr>
+            <td class="mono">2020-05</td>
+            <td class="num mono up">+2.53%</td>
+            <td class="num mono down">-0.01%</td>
+            <td class="num mono up">+2.53pp</td>
+            <td class="num mono dim">32,349</td>
+            <td class="num mono up">+7.83%</td>
+          </tr>
+          <tr>
+            <td class="mono">2020-04</td>
+            <td class="num mono up">+1.72%</td>
+            <td class="num mono up">+6.25%</td>
+            <td class="num mono down">-4.54pp</td>
+            <td class="num mono dim">31,552</td>
+            <td class="num mono up">+5.17%</td>
+          </tr>
+          <tr>
+            <td class="mono">2020-03</td>
+            <td class="num mono up">+3.40%</td>
+            <td class="num mono down">-7.12%</td>
+            <td class="num mono up">+10.52pp</td>
+            <td class="num mono dim">31,020</td>
+            <td class="num mono up">+3.40%</td>
+          </tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    虚拟盘 / 纸面账户，不接券商，不构成投资建议 · 数据每日自动更新
+  </footer>
+<!--APP_END-->
+</div>
+
+<script>
+let D = {"updated":"20261030","factor":{"months":["2020-03","2020-04","2020-05","2020-06","2020-07","2020-08","2020-09","2020-10","2020-11","2020-12","2021-01","2021-02","2021-03","2021-04","2021-05","2021-06","2021-07","2021-08","2021-09","2021-10","2021-11","2021-12","2022-01","2022-02","2022-03","2022-04","2022-05","2022-06","2022-07","2022-08","2022-09","2022-10","2022-11","2022-12","2023-01","2023-02","2023-03","2023-04","2023-05","2023-06","2023-07","2023-08","2023-09","2023-10","2023-11","2023-12","2024-01","2024-02","2024-03","2024-04","2024-05","2024-06","2024-07","2024-08","2024-09","2024-10","2024-11","2024-12","2025-01","2025-02","2025-03","2025-04","2025-05","2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"curve_months":["基期","2020-03","2020-04","2020-05","2020-06","2020-07","2020-08","2020-09","2020-10","2020-11","2020-12","2021-01","2021-02","2021-03","2021-04","2021-05","2021-06","2021-07","2021-08","2021-09","2021-10","2021-11","2021-12","2022-01","2022-02","2022-03","2022-04","2022-05","2022-06","2022-07","2022-08","2022-09","2022-10","2022-11","2022-12","2023-01","2023-02","2023-03","2023-04","2023-05","2023-06","2023-07","2023-08","2023-09","2023-10","2023-11","2023-12","2024-01","2024-02","2024-03","2024-04","2024-05","2024-06","2024-07","2024-08","2024-09","2024-10","2024-11","2024-12","2025-01","2025-02","2025-03","2025-04","2025-05","2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"curve":[30000.0,31019.7,31552.31,32349.32,34941.15,43181.67,47357.77,44377.54,46189.03,46994.11,49485.27,44771.79,46831.74,47615.71,55154.7,55169.04,54256.55,52905.02,55195.27,56774.41,62677.25,61576.01,72558.7,70033.66,70992.42,68521.89,60564.44,71667.72,77286.47,76701.41,75156.64,71071.13,75028.37,83890.72,80834.58,85638.58,86621.71,83590.82,80338.3,80656.44,83535.87,88123.66,85129.22,84796.36,82763.8,85072.91,82930.77,70700.97,71752.29,74390.62,74961.94,72264.81,66855.07,63480.23,61762.45,74641.16,77040.12,91403.48,86136.82,84136.72,83495.6,85026.91,88041.96,90953.51,95161.02,95141.03,95816.53,92730.28,95869.2,96106.96,93810.0,98965.8,99963.38,98031.08,100351.48,93793.51,80407.3,88641.01,85264.67,99504.73,99152.48],"hs_curve":[27863.4,29605.98,29604.2,31593.9,35549.46,36152.37,34526.6,34761.38,36664.92,38498.16,39524.91,39376.69,36886.11,37349.4,39054.4,38346.74,35200.39,35279.59,35732.58,35681.84,35344.65,36138.13,33264.79,32856.63,30174.87,28862.87,29557.6,32439.17,30131.12,29538.74,27640.58,25477.71,27889.68,27536.32,29616.97,28902.01,28775.71,28559.32,27029.96,27414.33,28562.17,26824.45,26190.05,25432.37,24659.74,24214.38,22723.74,24950.67,25109.86,25483.24,24966.18,24158.53,24045.47,23195.46,28176.68,24635.44,24851.98,25012.28,24282.42,24568.95,24490.82,23722.06,24008.62,24651.33,25526.21,28203.14,28976.19,28842.9,28158.17,28721.05,28996.48,29222.08,27780.26,29564.03,29773.93,30269.67,27929.22,28316.6,26715.86,24449.55],"all_curve":[28929.6,29754.09,30808.58,32552.96,37007.51,37789.48,34776.52,34079.25,35815.25,35131.89,33108.3,34449.85,35357.6,35574.69,37562.61,38049.8,37447.09,40498.28,40178.34,38905.49,42121.81,44195.46,40427.36,41919.53,40121.18,35140.14,39090.59,41991.11,43084.98,42147.02,38754.19,39335.11,43027.5,41247.02,44261.35,45548.03,44428.92,43435.04,43205.27,44561.92,45751.72,43461.85,43457.06,42990.34,44372.91,43614.13,37114.31,39307.4,41020.02,40705.81,39811.91,36377.34,36732.38,35409.28,42753.87,41091.6,43025.78,41597.76,40929.7,42837.43,43085.03,42247.89,44026.1,46272.31,48351.79,51957.38,52387.07,53375.62,53237.37,54192.45,57797.88,60435.19,56009.52,57960.9,55408.3,51866.6,50805.93,54790.13,53566.66,47959.31],"dd":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,-6.293,-2.468,-0.768,0.0,-9.525,-5.362,-3.778,0.0,0.0,-1.654,-4.104,0.0,0.0,0.0,-1.757,0.0,-3.48,-2.159,-5.564,-16.53,-1.228,0.0,-0.757,-2.756,-8.042,-2.922,0.0,-3.643,0.0,0.0,-3.499,-7.254,-6.887,-3.562,0.0,-3.398,-3.776,-6.082,-3.462,-5.893,-19.771,-18.578,-15.584,-14.936,-17.996,-24.135,-27.965,-29.914,-15.3,-12.577,0.0,-5.762,-7.95,-8.652,-6.976,-3.678,-0.492,0.0,-0.021,0.0,-3.221,0.0,0.0,-2.39,0.0,0.0,-1.933,0.0,-6.535,-19.874,-11.669,-15.034,-0.844,-1.195],"net":[3.399,1.717,2.526,8.012,23.584,9.671,-6.293,4.082,1.743,5.301,-9.525,4.601,1.674,15.833,0.026,-1.654,-2.491,4.329,2.861,10.397,-1.757,17.836,-3.48,1.369,-3.48,-11.613,18.333,7.84,-0.757,-2.014,-5.436,5.568,11.812,-3.643,5.943,1.148,-3.499,-3.891,0.396,3.57,5.492,-3.398,-0.391,-2.397,2.79,-2.518,-14.747,1.487,3.677,0.768,-3.598,-7.486,-5.048,-2.706,20.852,3.214,18.644,-5.762,-2.322,-0.762,1.834,3.546,3.307,4.626,-0.021,0.71,-3.221,3.385,0.248,-2.39,5.496,1.008,-1.933,2.367,-6.535,-14.272,10.24,-3.809,16.701,-0.354],"hs":[-7.122,6.254,-0.006,6.721,12.52,1.696,-4.497,0.68,5.476,5.0,2.667,-0.375,-6.325,1.256,4.565,-1.812,-8.205,0.225,1.284,-0.142,-0.945,2.245,-7.951,-1.227,-8.162,-4.348,2.407,9.749,-7.115,-1.966,-6.426,-7.825,9.467,-1.267,7.556,-2.414,-0.437,-0.752,-5.355,1.422,4.187,-6.084,-2.365,-2.893,-3.038,-1.806,-6.156,9.8,0.638,1.487,-2.029,-3.235,-0.468,-3.535,21.475,-12.568,0.879,0.645,-2.918,1.18,-0.318,-3.139,1.208,2.677,3.549,10.487,2.741,-0.46,-2.374,1.999,0.959,0.778,-4.934,6.421,0.71,1.665,-7.732,1.387,-5.653,-8.483],"stat":{"periods":80,"from":"2020-03-02","to":"2026-10-30","years":6.66,"nav":99152.48,"init":30000.0,"total":230.51,"cagr":19.66,"mu":1.76,"sd":7.334,"t":2.15,"sharpe":0.83,"win":57.5,"win_n":46,"best":23.58,"worst":-14.75,"mdd":-29.91,"maxlose":4,"hs_total":-18.5,"all_total":59.86,"last12":3.42,"last12_hs":-15.23,"last12_win":50.0,"last24":28.7},"years":[{"year":"2020","net":64.95,"hs":28.33,"n":10,"win":90.0},{"year":"2021","net":46.63,"hs":-6.13,"n":12,"win":67.0},{"year":"2022","net":11.41,"hs":-23.8,"n":12,"win":42.0},{"year":"2023","net":2.59,"hs":-12.06,"n":12,"win":50.0},{"year":"2024","net":3.87,"hs":3.3,"n":12,"win":50.0},{"year":"2025","net":8.91,"hs":14.83,"n":12,"win":58.0},{"year":"2026","net":5.69,"hs":-14.87,"n":10,"win":50.0}],"rows":[{"m":"2020-03","net":3.399,"hs":-7.122,"ex":10.52,"nav":31020.0,"cum":3.4},{"m":"2020-04","net":1.717,"hs":6.254,"ex":-4.54,"nav":31552.0,"cum":5.17},{"m":"2020-05","net":2.526,"hs":-0.006,"ex":2.53,"nav":32349.0,"cum":7.83},{"m":"2020-06","net":8.012,"hs":6.721,"ex":1.29,"nav":34941.0,"cum":16.47},{"m":"2020-07","net":23.584,"hs":12.52,"ex":11.06,"nav":43182.0,"cum":43.94},{"m":"2020-08","net":9.671,"hs":1.696,"ex":7.97,"nav":47358.0,"cum":57.86},{"m":"2020-09","net":-6.293,"hs":-4.497,"ex":-1.8,"nav":44378.0,"cum":47.92},{"m":"2020-10","net":4.082,"hs":0.68,"ex":3.4,"nav":46189.0,"cum":53.96},{"m":"2020-11","net":1.743,"hs":5.476,"ex":-3.73,"nav":46994.0,"cum":56.65},{"m":"2020-12","net":5.301,"hs":5.0,"ex":0.3,"nav":49485.0,"cum":64.95},{"m":"2021-01","net":-9.525,"hs":2.667,"ex":-12.19,"nav":44772.0,"cum":49.24},{"m":"2021-02","net":4.601,"hs":-0.375,"ex":4.98,"nav":46832.0,"cum":56.11},{"m":"2021-03","net":1.674,"hs":-6.325,"ex":8.0,"nav":47616.0,"cum":58.72},{"m":"2021-04","net":15.833,"hs":1.256,"ex":14.58,"nav":55155.0,"cum":83.85},{"m":"2021-05","net":0.026,"hs":4.565,"ex":-4.54,"nav":55169.0,"cum":83.9},{"m":"2021-06","net":-1.654,"hs":-1.812,"ex":0.16,"nav":54257.0,"cum":80.86},{"m":"2021-07","net":-2.491,"hs":-8.205,"ex":5.71,"nav":52905.0,"cum":76.35},{"m":"2021-08","net":4.329,"hs":0.225,"ex":4.1,"nav":55195.0,"cum":83.98},{"m":"2021-09","net":2.861,"hs":1.284,"ex":1.58,"nav":56774.0,"cum":89.25},{"m":"2021-10","net":10.397,"hs":-0.142,"ex":10.54,"nav":62677.0,"cum":108.92},{"m":"2021-11","net":-1.757,"hs":-0.945,"ex":-0.81,"nav":61576.0,"cum":105.25},{"m":"2021-12","net":17.836,"hs":2.245,"ex":15.59,"nav":72559.0,"cum":141.86},{"m":"2022-01","net":-3.48,"hs":-7.951,"ex":4.47,"nav":70034.0,"cum":133.45},{"m":"2022-02","net":1.369,"hs":-1.227,"ex":2.6,"nav":70992.0,"cum":136.64},{"m":"2022-03","net":-3.48,"hs":-8.162,"ex":4.68,"nav":68522.0,"cum":128.41},{"m":"2022-04","net":-11.613,"hs":-4.348,"ex":-7.26,"nav":60564.0,"cum":101.88},{"m":"2022-05","net":18.333,"hs":2.407,"ex":15.93,"nav":71668.0,"cum":138.89},{"m":"2022-06","net":7.84,"hs":9.749,"ex":-1.91,"nav":77286.0,"cum":157.62},{"m":"2022-07","net":-0.757,"hs":-7.115,"ex":6.36,"nav":76701.0,"cum":155.67},{"m":"2022-08","net":-2.014,"hs":-1.966,"ex":-0.05,"nav":75157.0,"cum":150.52},{"m":"2022-09","net":-5.436,"hs":-6.426,"ex":0.99,"nav":71071.0,"cum":136.9},{"m":"2022-10","net":5.568,"hs":-7.825,"ex":13.39,"nav":75028.0,"cum":150.09},{"m":"2022-11","net":11.812,"hs":9.467,"ex":2.34,"nav":83891.0,"cum":179.64},{"m":"2022-12","net":-3.643,"hs":-1.267,"ex":-2.38,"nav":80835.0,"cum":169.45},{"m":"2023-01","net":5.943,"hs":7.556,"ex":-1.61,"nav":85639.0,"cum":185.46},{"m":"2023-02","net":1.148,"hs":-2.414,"ex":3.56,"nav":86622.0,"cum":188.74},{"m":"2023-03","net":-3.499,"hs":-0.437,"ex":-3.06,"nav":83591.0,"cum":178.64},{"m":"2023-04","net":-3.891,"hs":-0.752,"ex":-3.14,"nav":80338.0,"cum":167.79},{"m":"2023-05","net":0.396,"hs":-5.355,"ex":5.75,"nav":80656.0,"cum":168.85},{"m":"2023-06","net":3.57,"hs":1.422,"ex":2.15,"nav":83536.0,"cum":178.45},{"m":"2023-07","net":5.492,"hs":4.187,"ex":1.3,"nav":88124.0,"cum":193.75},{"m":"2023-08","net":-3.398,"hs":-6.084,"ex":2.69,"nav":85129.0,"cum":183.76},{"m":"2023-09","net":-0.391,"hs":-2.365,"ex":1.97,"nav":84796.0,"cum":182.66},{"m":"2023-10","net":-2.397,"hs":-2.893,"ex":0.5,"nav":82764.0,"cum":175.88},{"m":"2023-11","net":2.79,"hs":-3.038,"ex":5.83,"nav":85073.0,"cum":183.58},{"m":"2023-12","net":-2.518,"hs":-1.806,"ex":-0.71,"nav":82931.0,"cum":176.44},{"m":"2024-01","net":-14.747,"hs":-6.156,"ex":-8.59,"nav":70701.0,"cum":135.67},{"m":"2024-02","net":1.487,"hs":9.8,"ex":-8.31,"nav":71752.0,"cum":139.17},{"m":"2024-03","net":3.677,"hs":0.638,"ex":3.04,"nav":74391.0,"cum":147.97},{"m":"2024-04","net":0.768,"hs":1.487,"ex":-0.72,"nav":74962.0,"cum":149.87},{"m":"2024-05","net":-3.598,"hs":-2.029,"ex":-1.57,"nav":72265.0,"cum":140.88},{"m":"2024-06","net":-7.486,"hs":-3.235,"ex":-4.25,"nav":66855.0,"cum":122.85},{"m":"2024-07","net":-5.048,"hs":-0.468,"ex":-4.58,"nav":63480.0,"cum":111.6},{"m":"2024-08","net":-2.706,"hs":-3.535,"ex":0.83,"nav":61762.0,"cum":105.88},{"m":"2024-09","net":20.852,"hs":21.475,"ex":-0.62,"nav":74641.0,"cum":148.8},{"m":"2024-10","net":3.214,"hs":-12.568,"ex":15.78,"nav":77040.0,"cum":156.8},{"m":"2024-11","net":18.644,"hs":0.879,"ex":17.76,"nav":91403.0,"cum":204.68},{"m":"2024-12","net":-5.762,"hs":0.645,"ex":-6.41,"nav":86137.0,"cum":187.12},{"m":"2025-01","net":-2.322,"hs":-2.918,"ex":0.6,"nav":84137.0,"cum":180.46},{"m":"2025-02","net":-0.762,"hs":1.18,"ex":-1.94,"nav":83496.0,"cum":178.32},{"m":"2025-03","net":1.834,"hs":-0.318,"ex":2.15,"nav":85027.0,"cum":183.42},{"m":"2025-04","net":3.546,"hs":-3.139,"ex":6.68,"nav":88042.0,"cum":193.47},{"m":"2025-05","net":3.307,"hs":1.208,"ex":2.1,"nav":90954.0,"cum":203.18},{"m":"2025-06","net":4.626,"hs":2.677,"ex":1.95,"nav":95161.0,"cum":217.2},{"m":"2025-07","net":-0.021,"hs":3.549,"ex":-3.57,"nav":95141.0,"cum":217.14},{"m":"2025-08","net":0.71,"hs":10.487,"ex":-9.78,"nav":95817.0,"cum":219.39},{"m":"2025-09","net":-3.221,"hs":2.741,"ex":-5.96,"nav":92730.0,"cum":209.1},{"m":"2025-10","net":3.385,"hs":-0.46,"ex":3.84,"nav":95869.0,"cum":219.56},{"m":"2025-11","net":0.248,"hs":-2.374,"ex":2.62,"nav":96107.0,"cum":220.36},{"m":"2025-12","net":-2.39,"hs":1.999,"ex":-4.39,"nav":93810.0,"cum":212.7},{"m":"2026-01","net":5.496,"hs":0.959,"ex":4.54,"nav":98966.0,"cum":229.89},{"m":"2026-02","net":1.008,"hs":0.778,"ex":0.23,"nav":99963.0,"cum":233.21},{"m":"2026-03","net":-1.933,"hs":-4.934,"ex":3.0,"nav":98031.0,"cum":226.77},{"m":"2026-04","net":2.367,"hs":6.421,"ex":-4.05,"nav":100351.0,"cum":234.5},{"m":"2026-05","net":-6.535,"hs":0.71,"ex":-7.25,"nav":93794.0,"cum":212.65},{"m":"2026-06","net":-14.272,"hs":1.665,"ex":-15.94,"nav":80407.0,"cum":168.02},{"m":"2026-07","net":10.24,"hs":-7.732,"ex":17.97,"nav":88641.0,"cum":195.47},{"m":"2026-08","net":-3.809,"hs":1.387,"ex":-5.2,"nav":85265.0,"cum":184.22},{"m":"2026-09","net":16.701,"hs":-5.653,"ex":22.35,"nav":99505.0,"cum":231.68},{"m":"2026-10","net":-0.354,"hs":-8.483,"ex":8.13,"nav":99152.0,"cum":230.51}],"last_month":"2026-10","init":30000.0,"holdings":[{"code":"603014","name":"威高血净","buy":30.88,"cur":29.62,"pnl":-4.08,"mcap":31.32,"turn":0.88,"vol":0.86,"score":-2.718,"lots":3,"cost":9264.0,"value":8886.0,"fd":{"ind":"医疗器械","roe":8.2,"ystz":5.3,"sjltz":4.5,"rev":43.68,"np":8.64,"trend":"+4.6→+0.9→-0.4→+5.3","flag":"","report":"2026-09-30"},"amt":-378.0,"weight":30.0},{"code":"002441","name":"众业达","buy":8.27,"cur":7.78,"pnl":-5.93,"mcap":32.98,"turn":1.04,"vol":0.8,"score":-2.673,"lots":12,"cost":9924.0,"value":9336.0,"fd":{"ind":"电网设备","roe":4.73,"ystz":10.6,"sjltz":17.6,"rev":92.31,"np":2.13,"trend":"-2.4→+3.2→+4.8→+10.6","flag":"","report":"2026-09-30"},"amt":-588.0,"weight":31.5},{"code":"603656","name":"泰禾智能","buy":17.26,"cur":18.99,"pnl":10.02,"mcap":31.51,"turn":0.8,"vol":0.98,"score":-2.639,"lots":6,"cost":10356.0,"value":11394.0,"fd":{"ind":"专用设备","roe":2.3,"ystz":14.5,"sjltz":6.3,"rev":4.79,"np":0.31,"trend":"+9.3→+28.7→+24.1→+14.5","flag":"","report":"2026-09-30"},"amt":1038.0,"weight":38.5}],"n":3,"sig_date":"20260930","why":"选股逻辑：在全市场主板里同时取「流通市值最小、20 日换手最低、20 日波动最低」三项排名，等权合成综合分，取前 3 只，持有一个月，月末收盘算信号、次日开盘买入。中途不止盈不止损（回测：−8%/−10% 止损只会削收益）。","live":{"total":30072.0,"cash":456.0,"pnl":72.0,"pct":0.24,"bought":29544.0}},"paper":{"has":true,"date":"20261030","cash":915270.6,"cost":0.0,"mv":0.0,"total":915270.6,"ret":-8.47,"day_pnl":0.02,"day_pct":0.0,"realized":-84729.6,"mdd":-8.47,"n":0,"hs_pct":-0.46,"days":6,"holdings":[],"trades":[{"date":"10-29","code":"002506","name":"协鑫集成","buy":2.39,"sell":2.2,"pnl":-7.95,"amt":-12410.0,"why":"稳健止损 亏损-7.9%"},{"date":"10-29","code":"002011","name":"盾安环境","buy":12.74,"sell":11.19,"pnl":-12.17,"amt":-18606.0,"why":"稳健止损 亏损-12.2%"},{"date":"10-29","code":"603228","name":"景旺电子","buy":101.98,"sell":69.23,"pnl":-32.11,"amt":-46199.0,"why":"稳健止损 亏损-32.1%"},{"date":"10-29","code":"000690","name":"宝新能源","buy":5.24,"sell":5.42,"pnl":3.44,"amt":4590.0,"why":"持仓15个交易日，强制清仓"},{"date":"10-29","code":"002171","name":"楚江新材","buy":9.89,"sell":8.59,"pnl":-13.14,"amt":-20097.0,"why":"稳健止损 亏损-13.1%"},{"date":"10-08","code":"002262","name":"恩华药业","buy":21.64,"sell":22.2,"pnl":2.59,"amt":672.0,"why":"持仓9天，强制清仓"},{"date":"10-08","code":"512010","name":"医药ETF易方达","buy":0.379,"sell":0.387,"pnl":2.11,"amt":2632.0,"why":"持仓9天，强制清仓"},{"date":"10-08","code":"002039","name":"黔源电力","buy":19.55,"sell":19.59,"pnl":0.2,"amt":204.0,"why":"持仓9天，强制清仓"},{"date":"10-08","code":"000690","name":"宝新能源","buy":5.22,"sell":5.24,"pnl":0.38,"amt":382.0,"why":"持仓9天，强制清仓"},{"date":"10-08","code":"603939","name":"益丰药房","buy":22.62,"sell":23.33,"pnl":3.14,"amt":3376.0,"why":"持仓9天，强制清仓"},{"date":"10-08","code":"002262","name":"恩华药业","buy":21.64,"sell":22.3,"pnl":3.05,"amt":726.0,"why":"[减半] 稳健减半锁利 峰值6.3%→3.0%"}]},"warn":["年化 19.66% 是「回测/纸面」结果，不是能拿到的钱。<b>真实预期按 3~8%/年 想。</b>","这些收益是 2020-2021 两年造的（两年 +167%），之后五年只有 +40%（年化 7.0%）；近 46 期年化 5.84%，同期国证2000 是 2.72%。再往下还要扣 3~8pp 的退市成本（池子里零退市，真实市场 6 年退市 200+ 只）。","<b>统计上到底显不显著</b>：策略对 0 的检验 t = 2.15（80 期），p≈0.03，<b>单看是过的</b>。但三条都挡着：① 对基准的超额 p = 0.145，不显著；② 这套参数是我试了 6 个变体 + 十档 + TopN 共 18 次以上挑出来的，Bonferroni 门槛是 0.0028，实际过不了；③ 剔除最好的 5 个月后年化只剩 4.96%。更关键的是<b>「选股」这一步</b>：池内随机抽 3 只的年化中位是 8.8%，本策略在 93.6 分位，但配对 t 只有 1.54；Top1 只有 10.6%、Top3 19.9%、Top5 16.0% —— 峰顶恰好落在运行点上，是取点运气。<b>选股贡献按 0 计。</b>","<b>真正的收益来源是「21~30 亿 + 几乎没人交易」这个极窄角落，不是因子。</b>流通市值下限抬到 40 亿、或换手下限抬到 2.0%，年化直接归零（池子仍有 79 只，不是样本不足）。而池子中位流通市值已从 2020 年的 31.0 亿涨到 37.1 亿、换手 0.91%→1.25% —— <b>这个角落正在关闭</b>。硬阈值：中位 >40 亿或换手 >1.8% 即停新增买入。","收益高度集中在少数几个月。最好 5 个月贡献了总收益的七成，去掉它们年化只剩个位数。所以中途某一年跑输大盘是正常的。","最大回撤 -29.91%，最长连亏 4 个月 —— 这是真实会经历的，不是理论数字。真金白银时要想清楚扛不扛得住。","页面上的「现价」若是盘中抓的，浮动盈亏会随分时变动；收盘后看才准。"],"health":{"data_date":"20261030","paper_last":"20261030","next_sig":"20261030","next_buy":"20261102","broken_n":0,"broken_names":[]}};
+let F, P, nav, hs, allc, months, net;
+function bindData(){
+  F = D.factor || {}; P = D.paper || {};
+  nav = F.curve || []; hs = F.hs_curve || []; allc = F.all_curve || [];
+  months = F.curve_months || []; net = F.net || [];
+}
+bindData();
+
+const money = v => (v==null?'—':v.toLocaleString('zh-CN',{maximumFractionDigits:0}));
+const pct = v => (v==null?'—':(v>0?'+':'')+v.toFixed(2)+'%');
+
+/* ---------- 净值曲线 ---------- */
+function drawNav(){
+  const svg = document.getElementById('navChart');
+  if(!nav.length) return;
+  // 用容器真实像素做坐标，不做等比缩放 —— 否则手机上文字会缩成 4px 看不清。
+  const W = Math.max(300, Math.round(svg.parentElement.clientWidth || 1000));
+  const mob = W < 640;
+  const H = mob ? 250 : 340;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.style.height = H + 'px';
+  const pl = mob ? 46 : 62, pr = mob ? 12 : 16, pt = 16, pb = mob ? 26 : 34;
+  const iw=W-pl-pr, ih=H-pt-pb;
+  const n=nav.length;
+  const fs = mob ? 9.5 : 10.5;
+
+  let lo=Infinity, hi=-Infinity;
+  [nav,hs,allc].forEach(s=>s.forEach(v=>{ if(v>0){lo=Math.min(lo,v);hi=Math.max(hi,v);} }));
+  const pad=(hi-lo)*0.08; lo=Math.max(0,lo-pad); hi=hi+pad;
+
+  const X = i => pl + (n===1?0:i*iw/(n-1));
+  const Y = v => pt + ih - (v-lo)/(hi-lo)*ih;
+
+  let s='';
+  const ticks = mob ? 4 : 5;
+  for(let k=0;k<=ticks;k++){
+    const v = lo + (hi-lo)*k/ticks, y = Y(v);
+    s += `<line x1="${pl}" y1="${y.toFixed(1)}" x2="${W-pr}" y2="${y.toFixed(1)}"
+            stroke="#1a222e" stroke-width="1"/>`;
+    s += `<text x="${pl-7}" y="${(y+3.5).toFixed(1)}" fill="#5a6472" font-size="${fs}"
+            text-anchor="end" font-family="ui-monospace,Consolas,monospace">${Math.round(v/10000)}</text>`;
+  }
+  months.forEach((m,i)=>{
+    if(i===0 || (m.endsWith('-01')&&i>0)){
+      const x=X(i);
+      s += `<line x1="${x.toFixed(1)}" y1="${pt}" x2="${x.toFixed(1)}" y2="${pt+ih}"
+              stroke="#141b24" stroke-width="1"/>`;
+      s += `<text x="${x.toFixed(1)}" y="${H-11}" fill="#5a6472" font-size="${fs}"
+              text-anchor="middle" font-family="ui-monospace,Consolas,monospace">${m==='基期'?'':(mob?m.slice(2,4):m.slice(0,4))}</text>`;
+    }
+  });
+
+  // 面积 + 线
+  const line = (arr,color,w,dash,alpha)=>{
+    const pts = arr.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+    let g='';
+    if(alpha){
+      g = `<defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity=".22"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
+        <polygon points="${pl},${pt+ih} ${pts} ${W-pr},${pt+ih}" fill="url(#ga)"/>`;
+    }
+    return g + `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="${w}"
+      stroke-linejoin="round" stroke-linecap="round" ${dash?`stroke-dasharray="${dash}"`:''}/>`;
+  };
+
+  s += line(hs,'#5a6472',1.4,'4 4',false);
+  s += line(allc,'#4c9aff',1.7,'',false);
+  s += line(nav,'#e8b44a',2.4,'',true);
+
+  // 末端标注
+  const lastY = Y(nav[n-1]);
+  s += `<circle cx="${X(n-1).toFixed(1)}" cy="${lastY.toFixed(1)}" r="4" fill="#e8b44a"/>
+        <circle cx="${X(n-1).toFixed(1)}" cy="${lastY.toFixed(1)}" r="8" fill="#e8b44a" opacity=".18"/>`;
+  const lx = X(n-1)-8;
+  s += `<text x="${lx.toFixed(1)}" y="${(lastY-13).toFixed(1)}" fill="#e8b44a" font-size="11.5"
+          font-weight="700" text-anchor="end" font-family="ui-monospace,Consolas,monospace">${money(nav[n-1])}</text>`;
+
+  // hover 层
+  s += `<line id="hLine" x1="0" y1="${pt}" x2="0" y2="${pt+ih}" stroke="#3a4a5e"
+          stroke-width="1" stroke-dasharray="3 3" opacity="0"/>`;
+  s += `<circle id="hDot" r="4" fill="#e8b44a" stroke="#0a0e14" stroke-width="2" opacity="0"/>`;
+  s += `<rect id="hRect" x="${pl}" y="${pt}" width="${iw}" height="${ih}" fill="transparent" style="cursor:crosshair"/>`;
+  svg.innerHTML = s;
+
+  const tip=document.getElementById('tip');
+  const hl=svg.querySelector('#hLine'), dot=svg.querySelector('#hDot'), rect=svg.querySelector('#hRect');
+  const box=svg.parentElement;
+  const evt = e=>{
+    const r=svg.getBoundingClientRect();
+    const cx=(e.touches?e.touches[0].clientX:e.clientX)-r.left;
+    const vx=cx/r.width*W;
+    let i=Math.round((vx-pl)/(iw/(n-1)));
+    i=Math.max(0,Math.min(n-1,i));
+    const x=X(i);
+    hl.setAttribute('x1',x);hl.setAttribute('x2',x);hl.setAttribute('opacity','1');
+    dot.setAttribute('cx',x);dot.setAttribute('cy',Y(nav[i]));dot.setAttribute('opacity','1');
+    const diff = hs[i]?((nav[i]/hs[i]-1)*100):0;
+    tip.innerHTML = `<b>${months[i]}</b><br>
+      <span style="color:#e8b44a">本策略 ${money(nav[i])}</span><br>
+      <span style="color:#8b96a4">沪深300 ${hs[i]?money(hs[i]):'—'}</span><br>
+      <span style="color:${diff>=0?'#f6465d':'#0ecb81'}">超额 ${diff>=0?'+':''}${diff.toFixed(1)}%</span>`;
+    tip.style.opacity='1';
+    const px = x/W*r.width;
+    tip.style.left = Math.max(70,Math.min(r.width-70,px))+'px';
+    tip.style.top = (Y(nav[i])/H*r.height)+'px';
+  };
+  ['mousemove','touchmove'].forEach(t=>svg.addEventListener(t,evt,{passive:true}));
+  ['mouseleave','touchend'].forEach(t=>svg.addEventListener(t,()=>{
+    tip.style.opacity='0';hl.setAttribute('opacity','0');dot.setAttribute('opacity','0');
+  }));
+}
+
+/* ---------- 月度柱状图 ---------- */
+function drawBar(){
+  const svg=document.getElementById('barChart');
+  if(!net.length) return;
+  const W = Math.max(300, Math.round(svg.parentElement.clientWidth || 1000));
+  const mob = W < 640;
+  const H = mob ? 180 : 220;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.style.height = H + 'px';
+  const pl = mob ? 40 : 52, pr = mob ? 12 : 16, pt = 14, pb = mob ? 22 : 26;
+  const iw=W-pl-pr, ih=H-pt-pb;
+  const n=net.length;
+  const mx=Math.max(...net.map(v=>Math.abs(v)),1);
+  const zero = pt + ih/2;
+  const bw = Math.max(iw/n*0.62, 1.2);
+  const gap = iw/n;
+  const fs = mob ? 9 : 10;
+
+  let s='';
+  [mx,mx/2,0,-mx/2,-mx].forEach(v=>{
+    const y = zero - (v/mx)*(ih/2);
+    s += `<line x1="${pl}" y1="${y.toFixed(1)}" x2="${W-pr}" y2="${y.toFixed(1)}"
+            stroke="${v===0?'#2a3644':'#1a222e'}" stroke-width="1"/>`;
+    if(!mob || v===mx || v===0 || v===-mx){
+      s += `<text x="${pl-6}" y="${(y+3.5).toFixed(1)}" fill="#5a6472" font-size="${fs}"
+              text-anchor="end" font-family="ui-monospace,Consolas,monospace">${v>0?'+':''}${v.toFixed(0)}%</text>`;
+    }
+  });
+
+  net.forEach((v,i)=>{
+    const h = Math.abs(v)/mx*(ih/2);
+    const x = pl + i*gap + (gap-bw)/2;
+    const y = v>=0 ? zero-h : zero;
+    const c = v>0 ? '#f6465d' : (v<0 ? '#0ecb81' : '#4a5563');
+    s += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}"
+            height="${Math.max(h,0.6).toFixed(1)}" fill="${c}" opacity=".88" rx="1"/>`;
+  });
+
+  months.forEach((m,i)=>{
+    if(m==='基期') return;
+    if(i===0 || (m.endsWith('-01')&&i>0)){
+      s += `<text x="${(pl+i*gap).toFixed(1)}" y="${H-8}" fill="#5a6472" font-size="${fs}"
+              text-anchor="middle" font-family="ui-monospace,Consolas,monospace">${mob?m.slice(2,4):m.slice(0,4)}</text>`;
+    }
+  });
+  s += `<rect id="bRect" x="${pl}" y="${pt}" width="${iw}" height="${ih}" fill="transparent"/>`;
+  svg.innerHTML=s;
+
+  const tip=document.getElementById('tip2');
+  const r2=svg.querySelector('#bRect');
+  r2.addEventListener('mousemove',e=>{
+    const r=svg.getBoundingClientRect();
+    const vx=(e.clientX-r.left)/r.width*W;
+    let i=Math.floor((vx-pl)/gap);
+    i=Math.max(0,Math.min(n-1,i));
+    const v=net[i], h=hs[i]||0;
+    tip.innerHTML=`<b>${months[i]}</b><br>
+      <span style="color:${v>=0?'#f6465d':'#0ecb81'}">本策略 ${pct(v)}</span><br>
+      <span style="color:#8b96a4">沪深300 ${pct(h)}</span><br>
+      <span style="color:#8b96a4">超额 ${(v-h>=0?'+':'')}${(v-h).toFixed(2)}pp</span>`;
+    tip.style.opacity='1';
+    tip.style.left=Math.max(70,Math.min(r.width-70,(pl+i*gap+gap/2)/W*r.width))+'px';
+    tip.style.top=(pt+ih/2)/H*r.height+'px';
+  });
+  r2.addEventListener('mouseleave',()=>{tip.style.opacity='0';});
+}
+
+function renderAll(){ bindData(); drawNav(); drawBar(); }
+renderAll();
+let _rt;
+window.addEventListener('resize', ()=>{
+  clearTimeout(_rt);
+  _rt = setTimeout(()=>{ drawNav(); drawBar(); }, 180);
+});
+// 手机横竖屏切换
+window.addEventListener('orientationchange', ()=>setTimeout(()=>{drawNav();drawBar();}, 260));
+
+/* ================= 浏览器端自己取实时价 =================
+   GitHub 的 cron 是 best-effort：新建仓库 + 高频（每 10 分钟）最容易被丢，
+   实测本仓库定时触发了 0 次。所以价格**不能只靠 Actions 定时刷新** ——
+   这里让浏览器自己去腾讯行情取：返回体是 `v_sh603014="1~名称~603014~29.62~..."`，
+   用 <script> 加载即可（不需要 CORS），价格是第 4 个字段（下标 3），
+   纯 ASCII 数字，不受 GBK 编码影响。
+   → 只要手机打开这个页面，价格就一直是活的，与 Actions 有没有跑无关。 */
+function tcCode(c){ return (/^(6|9)/.test(c) ? 'sh' : 'sz') + c; }
+
+function applyQuotes(){
+  const F = (D.factor || {});
+  const holds = F.holdings || [];
+  if(!holds.length) return;
+  const cash = (F.live && F.live.cash) || 0;
+  const init = F.init || 30000;
+  const px = {}, val = {}, amt = {};
+  holds.forEach(h=>{
+    const raw = window['v_' + tcCode(h.code)];
+    let p = 0;
+    if(raw){ const f = raw.split('~'); p = parseFloat(f[3]); }
+    px[h.code] = (p > 0) ? p : (h.cur || h.buy || 0);
+    val[h.code] = (h.lots || 0) * 100 * px[h.code];
+    amt[h.code] = val[h.code] - (h.cost || 0);
+  });
+  let total = cash, inS = 0, outS = 0, got = 0;
+  holds.forEach(h=>{
+    total += val[h.code];
+    if(px[h.code] > 0) got++;
+    if(amt[h.code] > 0) inS += amt[h.code]; else outS += amt[h.code];
+  });
+  const fmt = n => Math.round(n).toLocaleString('en-US');
+  holds.forEach(h=>{
+    const a = amt[h.code], v = val[h.code];
+    const r = (h.cost ? (v / h.cost - 1) * 100 : 0);
+    const k = a > 0 ? 'up' : (a < 0 ? 'down' : 'flat');
+    document.querySelectorAll('[data-code="' + h.code + '"]').forEach(el=>{
+      const set = (sel, t) => { const e = el.querySelector(sel); if(e) e.textContent = t; };
+      set('[data-cur]', px[h.code].toFixed(2));
+      set('[data-val]', fmt(v));
+      set('[data-amt]', (a > 0 ? '+' : '') + fmt(a));
+      set('[data-pnl]', (r > 0 ? '\u25B2 +' : (r < 0 ? '\u25BC ' : '')) + r.toFixed(2) + '%');
+      const reklass = e => { if(e) e.className = e.className.replace(/\b(up|down|flat)\b/g, '') + ' ' + k; };
+      reklass(el.querySelector('[data-amt]'));
+      reklass(el.querySelector('[data-pnl]'));
+      const ew = el.querySelector('[data-w]');
+      if(ew) ew.textContent = (total > 0 ? (v / total * 100) : 0).toFixed(0) + '%';
+      if(el.classList.contains('sat')){
+        el.classList.remove('in', 'out');
+        if(a > 0) el.classList.add('in'); else if(a < 0) el.classList.add('out');
+      }
+    });
+  });
+  const set = (id, t) => { const e = document.getElementById(id); if(e) e.textContent = t; };
+  set('poolTotal', fmt(total));
+  const pc = (total / init - 1) * 100;
+  const ep = document.getElementById('poolPct');
+  if(ep){ ep.textContent = (pc > 0 ? '+' : '') + pc.toFixed(2) + '%';
+          ep.className = pc > 0 ? 'up' : (pc < 0 ? 'down' : 'flat'); }
+  set('poolIn', '+' + fmt(inS));
+  set('poolOut', fmt(outS));
+  const tag = document.getElementById('liveTag');
+  if(tag){
+    if(got){
+      const d = new Date(Date.now() + (new Date().getTimezoneOffset() + 480) * 60000);
+      tag.textContent = '实时 ' + String(d.getHours()).padStart(2,'0') + ':' +
+                        String(d.getMinutes()).padStart(2,'0');
+    } else {
+      tag.textContent = '行情未取到（页面数值为上次收盘）';
+    }
+  }
+}
+
+function pollQuotes(){
+  const holds = (D.factor || {}).holdings || [];
+  if(!holds.length) return;
+  const s = document.createElement('script');
+  s.src = 'https://qt.gtimg.cn/q=' + holds.map(h => tcCode(h.code)).join(',');
+  s.onload = () => { applyQuotes(); s.remove(); };
+  s.onerror = () => s.remove();
+  document.head.appendChild(s);
+}
+
+function schedulePoll(){
+  // 北京时间 9:15-11:32 / 12:58-15:02 每 20 秒，其余每 5 分钟
+  const d = new Date(Date.now() + (new Date().getTimezoneOffset() + 480) * 60000);
+  const t = d.getHours() * 60 + d.getMinutes(), wd = d.getDay();
+  const open = wd >= 1 && wd <= 5 &&
+               ((t >= 555 && t <= 692) || (t >= 778 && t <= 902));
+  setTimeout(() => { pollQuotes(); schedulePoll(); }, open ? 20000 : 300000);
+}
+pollQuotes();
+schedulePoll();
+
+</script>
+</body>
+</html>
